@@ -1,0 +1,3 @@
+add admin dashboard 
+integrate remote switch functionality  
+integrate mongoclient 
