@@ -3,8 +3,18 @@ import customtkinter as ctk
 from facedetection import facedetect
 from data import connect_to_mongodb, watch_new_inserts
 import threading
+from pymongo import MongoClient
+from datetime import datetime
+
 
 current_theme = "dark-blue"
+
+connection_string = "mongodb+srv://roshan:roshanpwd@cluster0.uf1x9.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
+client = MongoClient(connection_string)
+
+
+db = client["dataa"]
+collection = db["upload"]
 
 # Relay and remote status text
 relay_status = None
@@ -19,18 +29,64 @@ def update_remote_status(text):
 def turnrelayon():
     relayon()
     update_status("ON")
+    dataa = {
+    "status": "Working",
+    "relay":"ON",
+    "timestamp": datetime.now(),
+    "medium":"manual on"
+    }
+
+# Insert the data
+    result = collection.insert_one(dataa)
+
+# Print inserted ID
+    print("Inserted ID:", result.inserted_id)
 
 def turnrelayoff():
     relayoff()
     update_status("OFF")
+    dataa = {
+    "status": "Working",
+    "relay":"OFF",
+    "timestamp": datetime.now(),
+    "medium":"manual-off"
+    }
+    # Insert the data
+    result = collection.insert_one(dataa)
+
+# Print inserted ID
+    print("Inserted ID:", result.inserted_id)
 
 def faceswitch():
     facedetect(on_face_detected=lambda: (relayon(), update_status("ON")))
+    dataa = {
+    "status": "Working",
+    "relay":"ON",
+    "timestamp": datetime.now(),
+    "medium":"face detected"
+    }
+    # Insert the data
+    result = collection.insert_one(dataa)
+
+# Print inserted ID
+    print("Inserted ID:", result.inserted_id)
 
 def handle_new_data(data):
     print("🚨 New data received from MongoDB:", data)
     relayon()
     update_status("ON")
+    dataa = {
+
+    "status": "Working",
+    "relay":"ON",
+    "timestamp": datetime.now(),
+    "medium":"cloud"
+    }
+    # Insert the data
+    result = collection.insert_one(dataa)
+
+# Print inserted ID
+    print("Inserted ID:", result.inserted_id)
 
 def remoteswitch():
     print("✅ Remote switch active...")
