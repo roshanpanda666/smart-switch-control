@@ -33,7 +33,7 @@ def turnrelayon():
     "status": "Working",
     "relay":"ON",
     "timestamp": datetime.now(),
-    "medium":"manual on"
+    "medium":"manual-on"
     }
 
 # Insert the data
