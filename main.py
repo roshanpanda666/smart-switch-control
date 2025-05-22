@@ -1,14 +1,20 @@
 from switch import relayon, relayoff, setup_board, set_relay_pin, exit_board
 import customtkinter as ctk
 from facedetection import facedetect
+from data import connect_to_mongodb, watch_new_inserts
+import threading
 
 current_theme = "dark-blue"
 
-# Relay status text
+# Relay and remote status text
 relay_status = None
+remote_status = None
 
 def update_status(text):
     relay_status.configure(text=f"Relay: {text}")
+
+def update_remote_status(text):
+    remote_status.configure(text=text)
 
 def turnrelayon():
     relayon()
@@ -21,14 +27,32 @@ def turnrelayoff():
 def faceswitch():
     facedetect(on_face_detected=lambda: (relayon(), update_status("ON")))
 
+def handle_new_data(data):
+    print("🚨 New data received from MongoDB:", data)
+    relayon()
+    update_status("ON")
+
+def remoteswitch():
+    print("✅ Remote switch active...")
+
+    connection_string = "mongodb+srv://roshan:roshanpwd@cluster0.uf1x9.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
+    client = connect_to_mongodb(connection_string)
+    collection = client["test"]["dataas"]
+
+    # Update UI to show remote control is active
+    update_remote_status("Remote Control: ACTIVE ✅")
+
+    watcher_thread = threading.Thread(target=watch_new_inserts, args=(collection, handle_new_data), daemon=True)
+    watcher_thread.start()
+
 def create_window(theme):
-    global relay_status
+    global relay_status, remote_status
 
     ctk.set_appearance_mode("system")
     ctk.set_default_color_theme(theme)
 
     root = ctk.CTk()
-    root.geometry("500x450")
+    root.geometry("500x480")
     root.title("Smart Switch Control Panel")
 
     # Relay control buttons
@@ -36,10 +60,13 @@ def create_window(theme):
     on.pack(pady=10, side="left")
 
     off = ctk.CTkButton(root, text="OFF", command=turnrelayoff, hover_color="purple")
-    off.pack(pady=10,side="right")
+    off.pack(pady=10, side="right")
 
     face = ctk.CTkButton(root, text="Face Detection Switch", command=faceswitch, hover_color="purple")
     face.pack(pady=10)
+
+    remote = ctk.CTkButton(root, text="Turn On Remote Switch", command=remoteswitch, hover_color="purple")
+    remote.pack(pady=10)
 
     # Dropdown to select pin (1 to 15)
     pin_var = ctk.StringVar(value="Select Pin")
@@ -70,7 +97,10 @@ def create_window(theme):
 
     # Status text at the bottom
     relay_status = ctk.CTkLabel(root, text="Relay: OFF", text_color="white")
-    relay_status.pack(pady=20)
+    relay_status.pack(pady=10)
+
+    remote_status = ctk.CTkLabel(root, text="", text_color="green")
+    remote_status.pack(pady=5)
 
     root.protocol("WM_DELETE_WINDOW", lambda: (exit_board(), root.destroy()))
     root.mainloop()

@@ -1,3 +1,0 @@
-
-integrate remote switch functionality  
-integrate mongoclient 
