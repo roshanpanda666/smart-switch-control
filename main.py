@@ -2,105 +2,80 @@ from switch import relayon, relayoff, setup_board, set_relay_pin, exit_board
 import customtkinter as ctk
 from facedetection import facedetect
 from data import connect_to_mongodb, watch_new_inserts
-import threading
 from pymongo import MongoClient
 from datetime import datetime
+from dotenv import load_dotenv
+import os
+import threading
 
+# Load environment variables
+load_dotenv()
 
-current_theme = "dark-blue"
-
-connection_string = "mongodb+srv://roshan:roshanpwd@cluster0.uf1x9.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
-client = MongoClient(connection_string)
-
-
+# Global MongoDB connection
+MONGO_URI = os.getenv("MONGO_URI")
+client = MongoClient(MONGO_URI)
 db = client["dataa"]
 collection = db["upload"]
+
+# UI theme
+current_theme = "dark-blue"
 
 # Relay and remote status text
 relay_status = None
 remote_status = None
 
+# Helper to log data to MongoDB
+def log_to_mongo(relay_value, medium):
+    try:
+        data = {
+            "status": "Working",
+            "relay": relay_value,
+            "timestamp": datetime.now(),
+            "medium": medium
+        }
+        result = collection.insert_one(data)
+        print("Inserted ID:", result.inserted_id)
+    except Exception as e:
+        print("❌ MongoDB insert failed:", e)
+
+# UI Update functions
 def update_status(text):
     relay_status.configure(text=f"Relay: {text}")
 
 def update_remote_status(text):
     remote_status.configure(text=text)
 
+# Relay Controls
 def turnrelayon():
     relayon()
     update_status("ON")
-    dataa = {
-    "status": "Working",
-    "relay":"ON",
-    "timestamp": datetime.now(),
-    "medium":"manual-on"
-    }
-
-# Insert the data
-    result = collection.insert_one(dataa)
-
-# Print inserted ID
-    print("Inserted ID:", result.inserted_id)
+    log_to_mongo("ON", "manual-on")
 
 def turnrelayoff():
     relayoff()
     update_status("OFF")
-    dataa = {
-    "status": "Working",
-    "relay":"OFF",
-    "timestamp": datetime.now(),
-    "medium":"manual-off"
-    }
-    # Insert the data
-    result = collection.insert_one(dataa)
-
-# Print inserted ID
-    print("Inserted ID:", result.inserted_id)
+    log_to_mongo("OFF", "manual-off")
 
 def faceswitch():
     facedetect(on_face_detected=lambda: (relayon(), update_status("ON")))
-    dataa = {
-    "status": "Working",
-    "relay":"ON",
-    "timestamp": datetime.now(),
-    "medium":"face detected"
-    }
-    # Insert the data
-    result = collection.insert_one(dataa)
+    log_to_mongo("ON", "face detected")
 
-# Print inserted ID
-    print("Inserted ID:", result.inserted_id)
-
+# Mongo Watch Callback
 def handle_new_data(data):
     print("🚨 New data received from MongoDB:", data)
     relayon()
     update_status("ON")
-    dataa = {
+    log_to_mongo("ON", "cloud")
 
-    "status": "Working",
-    "relay":"ON",
-    "timestamp": datetime.now(),
-    "medium":"cloud"
-    }
-    # Insert the data
-    result = collection.insert_one(dataa)
-
-# Print inserted ID
-    print("Inserted ID:", result.inserted_id)
-
+# Remote Control Activation
 def remoteswitch():
     print("✅ Remote switch active...")
-
-    connection_string = "mongodb+srv://roshan:roshanpwd@cluster0.uf1x9.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
-    client = connect_to_mongodb(connection_string)
-    collection = client["test"]["dataas"]
-
-    # Update UI to show remote control is active
     update_remote_status("Remote Control: ACTIVE ✅")
-
-    watcher_thread = threading.Thread(target=watch_new_inserts, args=(collection, handle_new_data), daemon=True)
+    remote_collection = client["test"]["dataas"]
+    watcher_thread = threading.Thread(target=watch_new_inserts, args=(remote_collection, handle_new_data), daemon=True)
     watcher_thread.start()
 
+# GUI Window
 def create_window(theme):
     global relay_status, remote_status
 
@@ -111,53 +86,30 @@ def create_window(theme):
     root.geometry("500x480")
     root.title("Smart Switch Control Panel")
 
-    # Relay control buttons
-    on = ctk.CTkButton(root, text="ON", command=turnrelayon, hover_color="purple")
-    on.pack(pady=10, side="left")
+    # Buttons
+    ctk.CTkButton(root, text="ON", command=turnrelayon, hover_color="purple").pack(pady=10, side="left")
+    ctk.CTkButton(root, text="OFF", command=turnrelayoff, hover_color="purple").pack(pady=10, side="right")
+    ctk.CTkButton(root, text="Face Detection Switch", command=faceswitch, hover_color="purple").pack(pady=10)
+    ctk.CTkButton(root, text="Turn On Remote Switch", command=remoteswitch, hover_color="purple").pack(pady=10)
 
-    off = ctk.CTkButton(root, text="OFF", command=turnrelayoff, hover_color="purple")
-    off.pack(pady=10, side="right")
-
-    face = ctk.CTkButton(root, text="Face Detection Switch", command=faceswitch, hover_color="purple")
-    face.pack(pady=10)
-
-    remote = ctk.CTkButton(root, text="Turn On Remote Switch", command=remoteswitch, hover_color="purple")
-    remote.pack(pady=10)
-
-    # Dropdown to select pin (1 to 15)
+    # Relay Pin
     pin_var = ctk.StringVar(value="Select Pin")
-    pin_dropdown = ctk.CTkOptionMenu(root, variable=pin_var, values=[str(i) for i in range(1, 16)])
-    pin_dropdown.pack(pady=10)
+    ctk.CTkOptionMenu(root, variable=pin_var, values=[str(i) for i in range(1, 16)]).pack(pady=10)
+    ctk.CTkButton(root, text="Apply Pin", command=lambda: set_relay_pin(int(pin_var.get()) if pin_var.get().isdigit() else 0)).pack(pady=5)
 
-    def apply_pin():
-        try:
-            pin = int(pin_var.get())
-            set_relay_pin(pin)
-        except ValueError:
-            print("Invalid pin selection")
-
-    apply_pin_btn = ctk.CTkButton(root, text="Apply Pin", command=apply_pin)
-    apply_pin_btn.pack(pady=5)
-
-    # Dropdown to select port (COM1 to COM10)
+    # COM Port
     port_var = ctk.StringVar(value="Select Port")
-    port_dropdown = ctk.CTkOptionMenu(root, variable=port_var, values=[f"COM{i}" for i in range(1, 11)])
-    port_dropdown.pack(pady=10)
+    ctk.CTkOptionMenu(root, variable=port_var, values=[f"COM{i}" for i in range(1, 11)]).pack(pady=10)
+    ctk.CTkButton(root, text="Apply Port", command=lambda: setup_board(port_var.get())).pack(pady=5)
 
-    def apply_port():
-        port = port_var.get()
-        setup_board(port)
-
-    apply_port_btn = ctk.CTkButton(root, text="Apply Port", command=apply_port)
-    apply_port_btn.pack(pady=5)
-
-    # Status text at the bottom
+    # Status Texts
     relay_status = ctk.CTkLabel(root, text="Relay: OFF", text_color="white")
     relay_status.pack(pady=10)
 
     remote_status = ctk.CTkLabel(root, text="", text_color="green")
     remote_status.pack(pady=5)
 
+    # Exit cleanly
     root.protocol("WM_DELETE_WINDOW", lambda: (exit_board(), root.destroy()))
     root.mainloop()
 
