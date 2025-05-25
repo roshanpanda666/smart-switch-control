@@ -1,1 +1,1 @@
-def create_window(theme):
+lambda data: print("📦 Upload data inserted:", data)

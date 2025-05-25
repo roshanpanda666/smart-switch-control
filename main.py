@@ -24,11 +24,14 @@ current_theme = "dark-blue"
 relay_status = None
 remote_status = None
 
+# Global state to track relay status
+current_relay_state = "OFF"
+
 # Helper to log data to MongoDB
 def log_to_mongo(relay_value, medium):
     try:
         data = {
-            "status": "Working",
+            "statuss": "Working",
             "relay": relay_value,
             "timestamp": datetime.now(),
             "medium": medium
@@ -47,34 +50,56 @@ def update_remote_status(text):
 
 # Relay Controls
 def turnrelayon():
+    global current_relay_state
     relayon()
     update_status("ON")
     log_to_mongo("ON", "manual-on")
+    current_relay_state = "ON"
 
 def turnrelayoff():
+    global current_relay_state
     relayoff()
     update_status("OFF")
     log_to_mongo("OFF", "manual-off")
+    current_relay_state = "OFF"
 
 def faceswitch():
     facedetect(on_face_detected=lambda: (relayon(), update_status("ON")))
     log_to_mongo("ON", "face detected")
+    global current_relay_state
+    current_relay_state = "ON"
 
-# Mongo Watch Callback
+# Mongo Watch Callback with toggle logic
+# Mongo Watch Callback with toggle logic
 def handle_new_data(data):
+    global current_relay_state
     print("🚨 New data received from MongoDB:", data)
-    relayon()
-    update_status("ON")
-    log_to_mongo("ON", "cloud")
+
+    if current_relay_state == "ON":
+        relayoff()
+        update_status("OFF")
+        log_to_mongo("OFF", "cloud toggle")
+        current_relay_state = "OFF"
+    else:
+        relayon()
+        update_status("ON")
+        log_to_mongo("ON", "cloud toggle")
+        current_relay_state = "ON"
 
 # Remote Control Activation
 def remoteswitch():
     print("✅ Remote switch active...")
     update_remote_status("Remote Control: ACTIVE ✅")
-    remote_collection = client["test"]["dataas"]
-    watcher_thread = threading.Thread(target=watch_new_inserts, args=(remote_collection, handle_new_data), daemon=True)
-    watcher_thread.start()
 
+    # Get collections
+    remote_collection_1 = client["test"]["dataas"]
+    remote_collection_2 = client["dataa"]["upload"]
+
+    # Watch both collections (use same handler or different if needed)
+    threading.Thread(target=watch_new_inserts, args=(remote_collection_1, handle_new_data), daemon=True).start()
+    threading.Thread(target=watch_new_inserts, args=(remote_collection_2, handle_dashboard_data), daemon=True).start()
+
+    print("👀 Watching 'dataas' and 'upload' collections for changes...")
 # GUI Window
 def create_window(theme):
     global relay_status, remote_status
