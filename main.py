@@ -97,7 +97,7 @@ def remoteswitch():
 
     # Watch both collections (use same handler or different if needed)
     threading.Thread(target=watch_new_inserts, args=(remote_collection_1, handle_new_data), daemon=True).start()
-    threading.Thread(target=watch_new_inserts, args=(remote_collection_2, handle_dashboard_data), daemon=True).start()
+    threading.Thread(target=watch_new_inserts, args=(remote_collection_2,), daemon=True).start()
 
     print("👀 Watching 'dataas' and 'upload' collections for changes...")
 # GUI Window
